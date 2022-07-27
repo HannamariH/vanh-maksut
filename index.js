@@ -7,68 +7,93 @@ require('dotenv').config()
 //const baseAddress = "https://koha-kktest.lib.helsinki.fi/api/v1"
 const baseAddress = "https://app1.jyu.koha.csc.fi/api/v1"
 
+//oltava getPatronsWithFinesin ulkopuolella, koska se suoritetaan monta kertaa
 let patronsWithFines = []
 
-//etsi ne, joilla maksuja
-//poimi niiden patron_id:t
-//hae näiden maksutiedot https://app1.jyu.koha.csc.fi/api/v1/patrons/<patron_id>/account
-//etsi niistä vanhentuneet maksut
-//poista ne, POST /patrons/{patron_id}/account/credits (?)
-
 const getPatronsWithFines = async (url) => {
+
     //hae kaikki asiakkaat, käy läpi joka sivu   
 
-    //urlista pois x-koha-embed
+    //urlista pois x-koha-embed, joka headerin linkistä siihen tulee
     url = url.replace("&x-koha-embed=account_balance", "")
     let patrons = []
     try {
         patrons = await axios.get(url, {
             headers: {
                 'Authorization': `Basic ${process.env.BASIC}`,
-                'x-koha-embed': 'account_balance'
+                'x-koha-embed': 'account_balance',
+                'User-Agent': 'Vanhentuneiden maksujen poistoskripti'
             }
-        })     
+        })
     } catch (error) {
         console.log(error)
     }
 
     for (const patron of patrons.data) {
         if (patron.account_balance > 0) {
-            //console.log(patron.patron_id, patron.account_balance, patron.surname, patron.firstname)
             patronsWithFines.push({
-                patron_id: patron.patron_id, 
-                account_balance: patron.account_balance, 
-                surname: patron.surname, 
+                patron_id: patron.patron_id,
+                account_balance: patron.account_balance,
+                surname: patron.surname,
                 firstname: patron.firstname
             })
         }
     }
 
-    //tämä try - catchiin
+    //TODO: tämä try - catchiin
     const parsed = parse(patrons.headers.link)
 
-    /*if (patronsWithFines.length < 100) {
+    //testailua varten
+    if (patronsWithFines.length < 300) {
+        return getPatronsWithFines(parsed.next.url)
+    }
+
+    /*if (parsed.next) {
         return getPatronsWithFines(parsed.next.url)
     }*/
-
-    //console.log("patronsWithFines", patronsWithFines)
-
-    if (parsed.next) {
-        return getPatronsWithFines(parsed.next.url)
-    }
-    getExpiredFines(patronsWithFines)
+    //etstitään vanhentuneet maksut
+    const finesToRemove = await getExpiredFines(patronsWithFines)
+    console.log("finesToRemove", finesToRemove)
+    //poistetaan vanhentuneet maksut
+    await removeFines(finesToRemove)
 }
 
-const isExpired = (fineDate) => {
-    const now = new Date()
+const removeFines = async (finesToRemove) => {
+    for (patron of finesToRemove) {
+        const data = {
+            account_lines_ids: patron.account_lines_ids,
+            amount: patron.amount,
+            credit_type: "WRITEOFF",
+            note: "Vanhentuneen maksun automaattipoisto"
+        }
+        const url = `${baseAddress}/patrons/${patron.patron_id}/account/credits`
+        //TESTIOSOITE KUIVAHARJOITTELUUN
+        //const url = "https://webhook.site/20b167fa-be79-4c99-ae04-90c734659b39"
+        console.log("postaa datan:", data, "urliin", url)
+        try {
+            await axios.post(url, data, {
+                headers: {
+                    'Authorization': `Basic ${process.env.BASIC}`,
+                    'User-Agent': 'Vanhentuneiden maksujen poistoskripti'
+                }
+            })
+        }
+        catch (error) {
+            console.log(error)
+        }
+
+    }
+}
+
+const isExpired = (fineDate, now) => {
     const fineYear = fineDate.getFullYear()
-    if (now.getFullYear()-fineYear >= 4) {
+    if (now.getFullYear() - fineYear >= 4) {
         return true
     }
-    const fineMonth = fineDate.getMonth()+1
-    if (now.getFullYear()-fineYear === 3) {
-        if (fineMonth < now.getMonth()+1) return true
-        else if (fineMonth === now.getMonth()+1) {
+    const fineMonth = fineDate.getMonth() + 1
+    if (now.getFullYear() - fineYear === 3) {
+        if (fineMonth < now.getMonth() + 1) return true
+        else if (fineMonth === now.getMonth() + 1) {
             const fineDay = fineDate.getDate()
             if (fineDay <= now.getDate()) return true
         }
@@ -84,23 +109,31 @@ const getExpiredFines = async (patronList) => {
         try {
             const account = await axios.get(`${baseAddress}/patrons/${patron.patron_id}/account`, {
                 headers: {
-                    'Authorization': `Basic ${process.env.BASIC}`
+                    'Authorization': `Basic ${process.env.BASIC}`,
+                    'User-Agent': 'Vanhentuneiden maksujen poistoskripti'
                 }
             })
-            //console.log(account.data)          
-            //console.log(patron)
+            let patronWithExpired = {
+                patron_id: patron.patron_id,
+                amount: 0,
+                account_lines_ids: []
+            }
             for (const line of account.data.outstanding_debits.lines) {
-                //console.log("date:", line.date)
                 const fineDate = new Date(line.date)
                 const now = new Date()
-                const expired = isExpired(fineDate)
+                const expired = isExpired(fineDate, now)
                 if (expired) {
-                    //TODO: tästä eteenpäin, ota tarvittavat jutut talteen ja etene poistamiseen
-                    //otetaan ko. linen account_line_id ja amount_outstanding talteen
-                    //poistetaan nämä rivit per asiakas, mukaan yhteissumma jos on monta vanhentunutta maksua
+                    //kerätään asiakkaan useammat maksurivit yhteen
                     console.log(patron, expired)
+                    patronWithExpired.amount = patronWithExpired.amount + line.amount_outstanding
+                    patronWithExpired.account_lines_ids.push(line.account_line_id)
                 }
-            }    
+            }
+            //jos asiakkaalla on vanhentuneita maksuja, otetaan talteen
+            if (patronWithExpired.amount > 0) {
+                expiredFines.push(patronWithExpired)
+                console.log("patronWithExpired", patronWithExpired)
+            }
         }
         catch (error) {
             console.log(error)
