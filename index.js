@@ -40,17 +40,20 @@ const getPatronsWithFines = async (url) => {
         }
     }
 
-    //TODO: tämä try - catchiin
-    const parsed = parse(patrons.headers.link)
-
-    //testailua varten
-    if (patronsWithFines.length < 300) {
-        return getPatronsWithFines(parsed.next.url)
+    try {
+        const parsed = parse(patrons.headers.link)
+        //testailua varten
+        if (patronsWithFines.length < 300) {
+            return getPatronsWithFines(parsed.next.url)
+        }
+        /*if (parsed.next) {
+            return getPatronsWithFines(parsed.next.url)
+        }*/
     }
+    catch (error) {
+        console.log(error)
+    }   
 
-    /*if (parsed.next) {
-        return getPatronsWithFines(parsed.next.url)
-    }*/
     //etstitään vanhentuneet maksut
     const finesToRemove = await getExpiredFines(patronsWithFines)
     console.log("finesToRemove", finesToRemove)
@@ -66,9 +69,9 @@ const removeFines = async (finesToRemove) => {
             credit_type: "WRITEOFF",
             note: "Vanhentuneen maksun automaattipoisto"
         }
-        const url = `${baseAddress}/patrons/${patron.patron_id}/account/credits`
+        //const url = `${baseAddress}/patrons/${patron.patron_id}/account/credits`
         //TESTIOSOITE KUIVAHARJOITTELUUN
-        //const url = "https://webhook.site/20b167fa-be79-4c99-ae04-90c734659b39"
+        const url = "https://webhook.site/20b167fa-be79-4c99-ae04-90c734659b39"
         console.log("postaa datan:", data, "urliin", url)
         try {
             await axios.post(url, data, {
@@ -86,6 +89,7 @@ const removeFines = async (finesToRemove) => {
 }
 
 const isExpired = (fineDate, now) => {
+    if (typeof fineDate !== "object" && !typeof now !== "object") return false
     const fineYear = fineDate.getFullYear()
     if (now.getFullYear() - fineYear >= 4) {
         return true
@@ -148,3 +152,5 @@ const getExpiredFines = async (patronList) => {
 //cron.schedule('* * * * *', () => removeOldDebts())
 
 getPatronsWithFines(`${baseAddress}/patrons`)
+
+module.exports = { isExpired }
