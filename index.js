@@ -1,7 +1,27 @@
 const cron = require('node-cron')
 const axios = require('axios')
 const parse = require('parse-link-header')
+const winston = require('winston')
 require('dotenv').config()
+
+const logger = winston.createLogger({
+    format: winston.format.combine(
+        winston.format.timestamp({
+            format: 'YYYY-MM-DD HH:mm:ss'
+        }),
+        winston.format.prettyPrint()
+    ),
+    transports: [
+        new winston.transports.File({
+            filename: "./logs/error.log",
+            level: "error"
+        }),
+        new winston.transports.File({
+            filename: "./logs/combined.log",
+            level: "info"
+        })
+    ]
+})
 
 // Testi-Kohan osoite
 //const baseAddress = "https://koha-kktest.lib.helsinki.fi/api/v1"
@@ -26,7 +46,11 @@ const getPatronsWithFines = async (url) => {
             }
         })
     } catch (error) {
-        console.log(error)
+        logger.error({
+            message: "Asiakkaiden haku epännistui: " + error.response.data.error,
+            status: error.response.status,
+            url: error.config.url,
+        })
     }
 
     for (const patron of patrons.data) {
@@ -43,7 +67,7 @@ const getPatronsWithFines = async (url) => {
     try {
         const parsed = parse(patrons.headers.link)
         //testailua varten
-        if (patronsWithFines.length < 300) {
+        if (patronsWithFines.length < 500) {
             return getPatronsWithFines(parsed.next.url)
         }
         /*if (parsed.next) {
@@ -52,7 +76,7 @@ const getPatronsWithFines = async (url) => {
     }
     catch (error) {
         console.log(error)
-    }   
+    }
 
     //etstitään vanhentuneet maksut
     const finesToRemove = await getExpiredFines(patronsWithFines)
@@ -80,9 +104,19 @@ const removeFines = async (finesToRemove) => {
                     'User-Agent': 'Vanhentuneiden maksujen poistoskripti'
                 }
             })
+            logger.info({
+                message: "Vanhentuneet maksut poistettu",
+                patron: patron.patron_id,
+                account_lines_ids: patron.account_lines_ids,
+                amount: patron.amount
+            })
         }
         catch (error) {
-            console.log(error)
+            logger.error({
+                message: "Maksujen poisto epännistui: " + error.response.data.error,
+                status: error.response.status,
+                url: error.config.url,
+            })
         }
 
     }
@@ -140,7 +174,11 @@ const getExpiredFines = async (patronList) => {
             }
         }
         catch (error) {
-            console.log(error)
+            logger.error({
+                message: "Asiakkaan maksujen haku epännistui: " + error.response.data.error,
+                status: error.response.status,
+                url: error.config.url,
+            })
         }
     }
     return expiredFines

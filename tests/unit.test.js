@@ -22,10 +22,6 @@ test("next day is not expired", () => {
     expect(isExpired(future, new Date())).toBe(false)
 })
 
-test("wrong parameter types handled correctly", () => {
-    expect(isExpired("kissa", 4)).toBe(false)
-})
-
 test("3 years ago, month after this month is not expired", () => {
     let past = new Date()
     past.setFullYear(past.getFullYear() - 3)
@@ -43,6 +39,17 @@ test("3 years ago, same month, date after this date is not expired", () => {
 test("exactly 3 years ago is expired", () => {
     let past = new Date()
     past.setFullYear(past.getFullYear() - 3)
-    console.log(past)
     expect(isExpired(past, new Date())).toBe(true)
+})
+
+test("more than 3 years ago is expired", () => {
+    let past = new Date()
+    past.setFullYear(past.getFullYear() - 7)
+    past.setMonth(past.getMonth() - 2)
+    past.setDate(past.getDate() - 10)
+    expect(isExpired(past, new Date())).toBe(true)
+})
+
+test("wrong parameter types handled correctly", () => {
+    expect(isExpired("kissa", 4)).toBe(false)
 })
