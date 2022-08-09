@@ -23,15 +23,12 @@ const logger = winston.createLogger({
     ]
 })
 
-// Testi-Kohan osoite
-//const baseAddress = "https://koha-kktest.lib.helsinki.fi/api/v1"
 const baseAddress = "https://app1.jyu.koha.csc.fi/api/v1"
 
 //oltava getPatronsWithFinesin ulkopuolella, koska se suoritetaan monta kertaa
 let patronsWithFines = []
 
 const getPatronsWithFines = async (url) => {
-
     //hae kaikki asiakkaat, käy läpi joka sivu   
 
     //urlista pois x-koha-embed, joka headerin linkistä siihen tulee
@@ -66,21 +63,18 @@ const getPatronsWithFines = async (url) => {
 
     try {
         const parsed = parse(patrons.headers.link)
-        //testailua varten
-        if (patronsWithFines.length < 500) {
+        if (parsed.next) {
             return getPatronsWithFines(parsed.next.url)
         }
-        /*if (parsed.next) {
-            return getPatronsWithFines(parsed.next.url)
-        }*/
     }
     catch (error) {
-        console.log(error)
+        logger.error({
+            message: "Next urlin parsiminen headerista epännistui",
+        })
     }
 
-    //etstitään vanhentuneet maksut
+    //etsitään vanhentuneet maksut
     const finesToRemove = await getExpiredFines(patronsWithFines)
-    console.log("finesToRemove", finesToRemove)
     //poistetaan vanhentuneet maksut
     await removeFines(finesToRemove)
 }
@@ -93,10 +87,7 @@ const removeFines = async (finesToRemove) => {
             credit_type: "WRITEOFF",
             note: "Vanhentuneen maksun automaattipoisto"
         }
-        //const url = `${baseAddress}/patrons/${patron.patron_id}/account/credits`
-        //TESTIOSOITE KUIVAHARJOITTELUUN
-        const url = "https://webhook.site/20b167fa-be79-4c99-ae04-90c734659b39"
-        console.log("postaa datan:", data, "urliin", url)
+        const url = `${baseAddress}/patrons/${patron.patron_id}/account/credits`
         try {
             await axios.post(url, data, {
                 headers: {
@@ -118,7 +109,6 @@ const removeFines = async (finesToRemove) => {
                 url: error.config.url,
             })
         }
-
     }
 }
 
@@ -162,7 +152,6 @@ const getExpiredFines = async (patronList) => {
                 const expired = isExpired(fineDate, now)
                 if (expired) {
                     //kerätään asiakkaan useammat maksurivit yhteen
-                    console.log(patron, expired)
                     patronWithExpired.amount = patronWithExpired.amount + line.amount_outstanding
                     patronWithExpired.account_lines_ids.push(line.account_line_id)
                 }
@@ -170,7 +159,6 @@ const getExpiredFines = async (patronList) => {
             //jos asiakkaalla on vanhentuneita maksuja, otetaan talteen
             if (patronWithExpired.amount > 0) {
                 expiredFines.push(patronWithExpired)
-                console.log("patronWithExpired", patronWithExpired)
             }
         }
         catch (error) {
@@ -184,11 +172,7 @@ const getExpiredFines = async (patronList) => {
     return expiredFines
 }
 
-// ajastetaan maksujen poisto joka yölle
-//cron.schedule('0 2 * * *', () => removeOldDebts())   AJAA SKRIPTIN JOKA YÖ KLO 02:00
-//minuutin välein
-//cron.schedule('* * * * *', () => removeOldDebts())
-
-getPatronsWithFines(`${baseAddress}/patrons`)
+// ajaa skriptin joka yö klo 02:00
+cron.schedule('0 2 * * *', () => getPatronsWithFines(`${baseAddress}/patrons`))   
 
 module.exports = { isExpired }
