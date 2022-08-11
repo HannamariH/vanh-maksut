@@ -25,10 +25,7 @@ const logger = winston.createLogger({
 
 const baseAddress = "https://app1.jyu.koha.csc.fi/api/v1"
 
-//oltava getPatronsWithFinesin ulkopuolella, koska se suoritetaan monta kertaa
-let patronsWithFines = []
-
-const getPatronsWithFines = async (url) => {
+const getPatronsWithFines = async (url, patronsWithFines) => {
     //hae kaikki asiakkaat, käy läpi joka sivu   
 
     //urlista pois x-koha-embed, joka headerin linkistä siihen tulee
@@ -64,7 +61,7 @@ const getPatronsWithFines = async (url) => {
     try {
         const parsed = parse(patrons.headers.link)
         if (parsed.next) {
-            return getPatronsWithFines(parsed.next.url)
+            return getPatronsWithFines(parsed.next.url, patronsWithFines)
         }
     }
     catch (error) {
@@ -75,6 +72,10 @@ const getPatronsWithFines = async (url) => {
 
     //etsitään vanhentuneet maksut
     const finesToRemove = await getExpiredFines(patronsWithFines)
+    if (finesToRemove.length === 0) {
+        logger.info({message: "Ei vanhentuneita maksuja"})
+        return
+    }
     //poistetaan vanhentuneet maksut
     await removeFines(finesToRemove)
 }
@@ -173,6 +174,6 @@ const getExpiredFines = async (patronList) => {
 }
 
 // ajaa skriptin joka yö klo 02:00
-cron.schedule('0 2 * * *', () => getPatronsWithFines(`${baseAddress}/patrons`))   
+cron.schedule('0 2 * * *', () => getPatronsWithFines(`${baseAddress}/patrons`, []))   
 
 module.exports = { isExpired }
