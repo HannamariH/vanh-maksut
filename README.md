@@ -8,10 +8,10 @@ Tuotantoon tarvitaan .env-tiedosto ja basic authorization muuttujaan BASIC.
 
 ## Käyntiin
 ### Joko suoraan
-npm start
+`npm start`
 
 ### Tai Dockerissa
-docker buildx build --platform linux/amd64 -t vanh-maksut .
+`docker buildx build --platform linux/amd64 -t vanh-maksut .`
 
-docker run -d --name vanh-maksut -p 3000:3000 vanh-maksut
+`docker run -d --name vanh-maksut -p <port>:3000 vanh-maksut`
 
