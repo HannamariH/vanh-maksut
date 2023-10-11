@@ -26,9 +26,9 @@ const logger = winston.createLogger({
 const baseAddress = "https://app1.jyu.koha.csc.fi/api/v1"
 
 const getPatronsWithFines = async (url, patronsWithFines) => {
-    //hae kaikki asiakkaat, käy läpi joka sivu   
+    //get all patrons, go through every page
 
-    //urlista pois x-koha-embed, joka headerin linkistä siihen tulee
+    //remove from url x-koha-embed, that comes from the header link
     url = url.replace("&x-koha-embed=account_balance", "")
     let patrons = []
     try {
@@ -70,13 +70,13 @@ const getPatronsWithFines = async (url, patronsWithFines) => {
         })
     }
 
-    //etsitään vanhentuneet maksut
+    //search for expired fines
     const finesToRemove = await getExpiredFines(patronsWithFines)
     if (finesToRemove.length === 0) {
         logger.info({message: "Ei vanhentuneita maksuja"})
         return
     }
-    //poistetaan vanhentuneet maksut
+    //remove expired fines
     await removeFines(finesToRemove)
 }
 
@@ -152,12 +152,12 @@ const getExpiredFines = async (patronList) => {
                 const now = new Date()
                 const expired = isExpired(fineDate, now)
                 if (expired) {
-                    //kerätään asiakkaan useammat maksurivit yhteen
+                    //combine patron's multiple fine rows
                     patronWithExpired.amount = patronWithExpired.amount + line.amount_outstanding
                     patronWithExpired.account_lines_ids.push(line.account_line_id)
                 }
             }
-            //jos asiakkaalla on vanhentuneita maksuja, otetaan talteen
+            //if patron has expired fines, save them
             if (patronWithExpired.amount > 0) {
                 expiredFines.push(patronWithExpired)
             }
@@ -173,7 +173,7 @@ const getExpiredFines = async (patronList) => {
     return expiredFines
 }
 
-// ajaa skriptin joka yö klo 02:00
+//runs the script every night at 02:00
 cron.schedule('0 2 * * *', () => getPatronsWithFines(`${baseAddress}/patrons`, []))   
 
 module.exports = { isExpired }

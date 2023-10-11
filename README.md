@@ -1,17 +1,18 @@
-# Vanhentuneiden maksujen poistoskripti
+# Script to remove expired fines
 
-Kohan maksut vanhenevat kolmessa vuodessa. Tällä skriptillä vanhentuneet poistetaan automaattisesti.
+Patron fines in Koha expire in three years. This script removes them automatically.
 
-Oletuksena skripti ajetaan joka yö klo 02.00.
+By default, the script is run evety night at 02:00.
 
-Tuotantoon tarvitaan .env-tiedosto ja basic authorization muuttujaan BASIC.
+For production you'll need an .env file and basic authorization in it's BASIC variable.
 
-## Käyntiin
-### Joko suoraan
-`npm start`
 
-### Tai Dockerissa
-`docker buildx build --platform linux/amd64 -t vanh-maksut .`
+## To run
+### Either right away
+npm start
+
+### Or in Docker
+docker buildx build --platform linux/amd64 -t vanh-maksut .
 
 `docker run -d --name vanh-maksut -p <port>:3000 vanh-maksut`
 
