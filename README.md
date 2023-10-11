@@ -2,7 +2,7 @@
 
 Patron fines in Koha expire in three years. This script removes them automatically.
 
-By default, the script is run evety night at 02:00.
+By default, the script is run every night at 02:00.
 
 For production you'll need an .env file and basic authorization in it's BASIC variable.
 
