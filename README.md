@@ -9,10 +9,10 @@ For production you'll need an .env file and basic authorization in it's BASIC va
 
 ## To run
 ### Either right away
-npm start
+`npm start`
 
 ### Or in Docker
-docker buildx build --platform linux/amd64 -t vanh-maksut .
+`docker buildx build --platform linux/amd64 -t vanh-maksut .`
 
 `docker run -d --name vanh-maksut -p <port>:3000 vanh-maksut`
 
